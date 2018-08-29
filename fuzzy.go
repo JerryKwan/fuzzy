@@ -11,8 +11,18 @@ import (
 	"unicode/utf8"
 )
 
+// record which will be matched
+type Record struct {
+	// ID of the record
+	ID string
+	// String to be matched
+	Str string
+}
+
 // Match represents a matched string.
 type Match struct {
+	// The ID of the matched record
+	ID string
 	// The matched string.
 	Str string
 	// The index of the matched string in the supplied slice.
@@ -59,7 +69,7 @@ The following types of matches apply a bonus:
 Penalties are applied for every character in the search string that wasn't matched and all leading
 characters upto the first match.
 */
-func Find(pattern string, data []string) Matches {
+func Find(pattern string, data []Record, maxLen int) Matches {
 	if len(pattern) == 0 {
 		return nil
 	}
@@ -68,7 +78,8 @@ func Find(pattern string, data []string) Matches {
 	var matchedIndexes []int
 	for i := 0; i < len(data); i++ {
 		var match Match
-		match.Str = data[i]
+		match.ID = data[i].ID
+		match.Str = data[i].Str
 		match.Index = i
 		if matchedIndexes != nil {
 			match.MatchedIndexes = matchedIndexes
@@ -82,10 +93,10 @@ func Find(pattern string, data []string) Matches {
 		currAdjacentMatchBonus := 0
 		var last rune
 		var lastIndex int
-		nextc, nextSize := utf8.DecodeRuneInString(data[i])
+		nextc, nextSize := utf8.DecodeRuneInString(data[i].Str)
 		var candidate rune
 		var candidateSize int
-		for j := 0; j < len(data[i]); j += candidateSize {
+		for j := 0; j < len(data[i].Str); j += candidateSize {
 			candidate, candidateSize = nextc, nextSize
 			if equalFold(candidate, runes[patternIndex]) {
 				score = 0
@@ -115,11 +126,11 @@ func Find(pattern string, data []string) Matches {
 			if patternIndex < len(runes)-1 {
 				nextp = runes[patternIndex+1]
 			}
-			if j+candidateSize < len(data[i]) {
-				if data[i][j+candidateSize] < utf8.RuneSelf { // Fast path for ASCII
-					nextc, nextSize = rune(data[i][j+candidateSize]), 1
+			if j+candidateSize < len(data[i].Str) {
+				if data[i].Str[j+candidateSize] < utf8.RuneSelf { // Fast path for ASCII
+					nextc, nextSize = rune(data[i].Str[j+candidateSize]), 1
 				} else {
-					nextc, nextSize = utf8.DecodeRuneInString(data[i][j+candidateSize:])
+					nextc, nextSize = utf8.DecodeRuneInString(data[i].Str[j+candidateSize:])
 				}
 			} else {
 				nextc, nextSize = 0, 0
@@ -146,7 +157,7 @@ func Find(pattern string, data []string) Matches {
 			last = candidate
 		}
 		// apply penalty for each unmatched character
-		penalty := len(match.MatchedIndexes) - len(data[i])
+		penalty := len(match.MatchedIndexes) - len(data[i].Str)
 		match.score += penalty
 		if len(match.MatchedIndexes) == len(runes) {
 			matches = append(matches, match)
@@ -156,7 +167,11 @@ func Find(pattern string, data []string) Matches {
 		}
 	}
 	sort.Stable(matches)
-	return matches
+	if maxLen >0 {
+		return matches[:maxLen]
+	} else {
+		return matches
+	}
 }
 
 // Taken from strings.EqualFold
